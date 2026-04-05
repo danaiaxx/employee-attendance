@@ -27,7 +27,14 @@ if (!empty($whereClauses)) {
 }
 
 // ===== FETCH ATTENDANCE RECORDS =====
-$records = $conn->query("SELECT * FROM attendance $whereSQL ORDER BY attDate, attTimeIn");
+$records = $conn->query("
+    SELECT a.*, e.depCode, e.empFName, e.empLName, e.empRPH, d.depName
+    FROM attendance a
+    JOIN employees e ON a.empId = e.empId
+    JOIN departments d ON e.depCode = d.depCode
+    $whereSQL
+    ORDER BY a.attDate, a.attTimeIn
+");
 
 // ===== PROCESS RECORDS =====
 $recordsArray = [];
@@ -43,10 +50,12 @@ if ($records->num_rows > 0) {
         // Build summary per employee
         $eId = $row['empId'];
         if (!isset($summary[$eId])) {
-            $empRow = $conn->query("SELECT empFName, empLName, empRPH FROM employees WHERE empId='$eId'")->fetch_assoc();
+            $empRow = $conn->query("SELECT empFName, empLName, depCode, empRPH FROM employees WHERE empId='$eId'")->fetch_assoc();
             $summary[$eId] = [
                 'name' => $empRow['empFName'] . ' ' . $empRow['empLName'],
                 'rate' => $empRow['empRPH'],
+                'depCode' => $row['depCode'],
+                'depName' => $row['depName'],
                 'hours' => 0,
             ];
         }
@@ -92,6 +101,8 @@ if ($records->num_rows > 0) {
         <tr>
             <td><?= $i + 1 ?></td>
             <td><?= $rec['empId'] ?></td>
+            <td><?= $rec['depCode'] ?></td>
+            <td><?= $rec['depName'] ?></td>
             <td><?= $rec['attDate'] ?></td>
             <td><?= date("h:i A", strtotime($rec['attTimeIn'])) ?></td>
             <td><?= date("h:i A", strtotime($rec['attTimeOut'])) ?></td>
@@ -103,6 +114,7 @@ if ($records->num_rows > 0) {
     <?php foreach ($summary as $s): ?>
         <p>
             <b>Employee:</b> <?= $s['name'] ?> |
+            <b>Department:</b> <?= $s['depCode'] ?> (<?= $s['depName'] ?>) |
             <b>Rate per Hour:</b> <?= number_format($s['rate'], 2) ?> |
             <b>Total Hours:</b> <?= number_format($s['hours'], 2) ?> |
             <b>Salary:</b> <?= number_format($s['hours'] * $s['rate'], 2) ?>
